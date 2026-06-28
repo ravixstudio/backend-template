@@ -1,0 +1,98 @@
+---
+description: Drizzle schema, service namespace, and migration patterns
+globs: packages/db/**/*
+alwaysApply: false
+---
+
+# Database Layer (@repo/db)
+
+## Initialization (in app startup only)
+
+```typescript
+import { initializeDB, connectDB, closeDB } from "@repo/db";
+
+initializeDB({ connectionString: env.DATABASE_URL, ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false });
+await connectDB();
+```
+
+## Schema Conventions
+
+Location: `packages/db/src/schema/{domain}/{table}.db.ts`
+
+```typescript
+import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
+
+export const usersTable = pgTable("users", {
+  id: uuid("id").notNull().primaryKey().defaultRandom(),
+  email: text("email").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+});
+
+export type User = typeof usersTable.$inferSelect;
+export type NewUser = typeof usersTable.$inferInsert;
+export type UpdateUser = Partial<NewUser>;
+```
+
+**Rules:**
+- Table/column names: `snake_case`. TypeScript properties: `camelCase`.
+- Always `{ withTimezone: true }` on timestamps.
+- Include `deletedAt` for soft deletes — filter with `isNull(table.deletedAt)`.
+- Export `$inferSelect` / `$inferInsert` types from schema files.
+- Re-export from `schema/index.ts` and domain `index.ts`.
+- PG enums: define TS enum + `pgEnum(..., enumToPgEnum(MyEnum))` from `@repo/shared`.
+
+## Service Namespace Pattern
+
+Location: `packages/db/src/services/{entity}.service.ts`
+
+```typescript
+export namespace UsersService {
+  export async function create(payload: NewUser, options?: { tx?: DBTransaction }) {
+    const queryClient = options?.tx || db;
+    try {
+      const result = await withMetrics("insert", "users", async () =>
+        queryClient.insert(usersTable).values(payload).returning(),
+      );
+      const [created] = result;
+      logger.audit("new user created", { module: "users", action: "service:create" });
+      return created;
+    } catch (err) {
+      logger.error("error creating user", { module: "users", action: "service:create", error: err });
+      throw err;
+    }
+  }
+}
+```
+
+**Rules:**
+- Use `export namespace XxxService` with one function per operation.
+- Wrap all queries in `withMetrics(operation, tableName, fn)` from `../utils/metrics-wrapper`.
+- Accept optional `{ tx?: DBTransaction }` — use `options?.tx || db`.
+- Log with `logger` from `@repo/shared` (audit on mutations, error on catch).
+- Re-throw errors after logging — never swallow.
+- Export new services from `packages/db/src/index.ts`.
+
+## Transactions
+
+```typescript
+return db.transaction(async (tx) => {
+  const user = await UsersService.upsertByProviderAccountId(payload, { tx });
+  const session = await SessionService.create({ ... }, { tx });
+  return { user, session };
+});
+```
+
+Operations that must be atomic (e.g. `upsertByProviderAccountId`) require `{ tx }` and throw if missing.
+
+## Migrations
+
+- Schema source: `packages/db/src/schema/**/*.ts`
+- Output: `apps/api/drizzle/`
+- After schema changes: `bun run db:generate` then `bun run db:migrate`
+- Config: `apps/api/drizzle.config.ts` (`casing: "snake_case"`)
+
+## Sensitive Data
+
+OAuth tokens stored encrypted (data + iv + tag columns). Encryption/decryption happens in API services using `@repo/shared` — not in DB services.

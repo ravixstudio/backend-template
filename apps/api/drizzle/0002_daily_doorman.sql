@@ -1,0 +1,1 @@
+ALTER TYPE "public"."session_provider" ADD VALUE 'apple';

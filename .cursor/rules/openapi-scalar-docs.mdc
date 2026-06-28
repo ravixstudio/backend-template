@@ -1,0 +1,125 @@
+---
+description: OpenAPI schema and Scalar API docs requirements for every endpoint
+globs: apps/api/**/*.ts
+alwaysApply: false
+---
+
+# OpenAPI & Scalar Documentation
+
+**Scalar UI:** `GET /docs` · **OpenAPI JSON:** `GET /docs-json`
+
+Every endpoint must be fully documented in code via `@hono/zod-openapi`. Scalar renders docs from these schemas — incomplete routes show up as broken or empty docs.
+
+## Required on Every Route
+
+```typescript
+export const myRoute = createRoute({
+  method: "get",
+  path: "/v1/resource/{id}",
+  tags: ["Resource"],           // Required — groups endpoints in Scalar sidebar
+  summary: "Short one-line title",  // Required — shown in route list
+  description: "What this endpoint does, auth requirements, side effects.", // Required
+  request: { /* fully documented */ },
+  responses: {
+    [StatusCodes.HTTP_200_OK]: {
+      description: "Human-readable success description", // Required per status
+      content: { "application/json": { schema: /* ... */ } },
+    },
+    ...errorResponseSchemas, // Required — never omit
+  },
+});
+```
+
+## Zod `.openapi()` Metadata (Required)
+
+Every schema field exposed in the API must include `.openapi()` with at least an `example`. Add `description` when the field name alone is not self-explanatory.
+
+```typescript
+// Path / query / body params
+provider: z.nativeEnum(SessionProvider).openapi({
+  description: "OAuth provider slug",
+  example: SessionProvider.GOOGLE,
+  param: { in: "path", name: "provider" }, // Required for params
+}),
+
+page: z.coerce.number().optional().default(1).openapi({
+  description: "Page number (1-indexed)",
+  example: 1,
+  param: { in: "query", name: "page" },
+}),
+
+// Response fields
+email: z.email().openapi({ example: "user@example.com" }),
+accessToken: z.string().openapi({
+  description: "JWT access token",
+  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+}),
+```
+
+**Rules:**
+- Never use bare `z.string()` / `z.number()` in public request/response schemas without `.openapi({ example: ... })`.
+- Use realistic examples (UUIDs, ISO dates, plausible URLs) — not `"string"` or `"test"`.
+- Nullable fields: `.nullable().openapi({ example: null })` or a realistic value.
+- Enums: `.openapi({ example: MyEnum.VALUE })`.
+- Request body fields: include `description` + `example` (no `param` block).
+
+## Response Shape (Document Completely)
+
+Standard success envelope — document every nested field:
+
+```typescript
+z.object({
+  message: z.string().openapi({ example: "Resource retrieved successfully" }),
+  payload: z.object({
+    user: z.object({
+      id: z.string().openapi({ example: "550e8400-e29b-41d4-a716-446655440000" }),
+      email: z.email().openapi({ example: "user@example.com" }),
+    }),
+  }),
+})
+```
+
+## Protected Routes
+
+For routes using `enforceUserMiddleware` or role checks, mention auth in `description`:
+
+```typescript
+description: "Returns the authenticated user. Requires a valid JWT (Bearer header or accessToken cookie).",
+```
+
+Security schemes registered globally (`bearerAuth`, `cookieAuth`) in `configureOpenAPI`. When adding authenticated endpoints, note which scheme applies in the description until route-level `security` is added.
+
+## Tags Convention
+
+| Tag | Module |
+|-----|--------|
+| `Auth` | Login, logout, refresh, me |
+| `OAuth` | Provider redirect & callback |
+| `Users` | User management |
+| `System` | Health, metrics |
+
+Add a new tag name for new modules — do not leave tags empty or generic.
+
+## Before Merging an Endpoint
+
+- [ ] `summary` and `description` filled in
+- [ ] Correct `tags` entry
+- [ ] All params have `.openapi({ example, param: { in, name } })`
+- [ ] Response schema documents `message` + `payload` with examples on every field
+- [ ] Success response has a `description` string
+- [ ] `...errorResponseSchemas` included
+- [ ] Verify in Scalar at `/docs` — endpoint appears, examples render, try-it-out works
+
+## What Not to Do
+
+```typescript
+// BAD — no docs, Scalar shows empty schema
+params: z.object({ id: z.string() }),
+schema: z.object({ data: z.any() }),
+
+// BAD — missing error responses
+responses: { 200: { /* only success */ } },
+
+// BAD — no tag or summary
+createRoute({ method: "get", path: "/v1/foo" })
+```

@@ -1,0 +1,74 @@
+---
+description: OAuth provider implementation and registration checklist
+globs: apps/api/src/modules/auth/**/*
+alwaysApply: false
+---
+
+# OAuth Providers
+
+Reference implementation: `providers/google.provider.ts`.
+
+Document provider-specific OAuth quirks in JSDoc (e.g. token refresh behavior, missing user fields). Handler routes for the provider must follow `openapi-scalar-docs.mdc`.
+
+## Provider Class
+
+Implement `OAuthProvider` from `@repo/shared` (re-exported in `base.provider.ts`):
+
+```typescript
+import { env } from "@/env";
+import { type OAuthProvider, type OAuthTokenResponse, type OAuthUserInfo } from "./base.provider";
+import { logger } from "@repo/shared";
+
+export class GoogleOAuthProvider implements OAuthProvider {
+  // Read credentials from env in constructor
+  getName(): string { return "google"; }
+  getDefaultScopes(): string[] { return ["openid", "email", "profile"]; }
+  getTokenEndpoint(): string { return "https://oauth2.googleapis.com/token"; }
+  getUserInfoEndpoint(): string { return "https://www.googleapis.com/oauth2/v2/userinfo"; }
+  getAuthorizationUrl(state: string): string { /* URLSearchParams + redirect */ }
+  async exchangeCodeForToken(code: string): Promise<OAuthTokenResponse> { /* fetch POST */ }
+  async refreshAccessToken(refreshToken: string): Promise<OAuthTokenResponse> { /* fetch POST */ }
+  async getUserInfo(accessToken: string): Promise<OAuthUserInfo> { /* fetch GET */ }
+}
+```
+
+**Provider method requirements:**
+- Wrap fetch calls in try/catch with structured `logger.error` (`module: "auth"`, `action: "oauth:{provider}:{operation}"`).
+- Log provider error payloads on non-OK responses before throwing.
+- Validate required fields (`access_token`, `id`, `email`) before returning.
+- Map provider fields to `OAuthUserInfo` (`email_verified`, `given_name`, `family_name`, `picture`).
+
+## Adding a New Provider — Full Checklist
+
+1. **Provider class** — `apps/api/src/modules/auth/providers/{name}.provider.ts`
+2. **Register factory** — `providers/index.ts`:
+   ```typescript
+   this.register(SessionProvider.APPLE, () => new AppleOAuthProvider());
+   ```
+3. **SessionProvider enum** — `packages/db/src/schema/users/sessions.db.ts`:
+   ```typescript
+   export enum SessionProvider { GOOGLE = "google", APPLE = "apple" }
+   ```
+   Enum drives `pgEnum` via `enumToPgEnum(SessionProvider)`.
+4. **Env vars** — extend `apps/api/src/env.ts` schema + parse block
+5. **Route enums** — handlers use `z.nativeEnum(SessionProvider)` or `z.enum(SessionProvider)` for provider param
+6. **Migration** — `bun run db:generate && bun run db:migrate`
+7. **Metrics** — increment `oauthEventsCounter` in callback handler (`provider`, `event_type` labels)
+8. **Export** — add to `providers/index.ts` exports if needed
+
+## OAuth Flow (Do Not Break)
+
+1. Handler generates `generateStateToken()` → signs with `signJwt(..., env.JWT_SECRET, { expiresIn: "10m" })`
+2. Callback verifies state JWT via `verifyJwt`
+3. `OAuthService` orchestrates token exchange, user upsert, session creation
+4. Provider tokens encrypted with `encrypt()` from `@repo/shared` before DB storage
+5. API returns JWT access + refresh tokens; refresh may be set as HttpOnly cookie
+
+## Factory
+
+Use `oauthProviderFactory` from `providers/index.ts`:
+- `hasProvider(provider)` — check before generating auth URL
+- `getProvider(provider)` — get instance for token exchange
+- `getRegisteredProviders()` — list supported providers
+
+Never instantiate provider classes directly in handlers — go through factory or `OAuthService`.

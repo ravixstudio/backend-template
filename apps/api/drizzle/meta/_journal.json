@@ -15,6 +15,13 @@
       "when": 1767551973806,
       "tag": "0001_married_sharon_carter",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782635172715,
+      "tag": "0002_daily_doorman",
+      "breakpoints": true
     }
   ]
 }

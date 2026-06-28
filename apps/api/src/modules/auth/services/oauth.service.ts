@@ -135,11 +135,11 @@ export namespace OAuthService {
       }
 
       // Get user info using access token
-      const userInfo = await oauthProvider.getUserInfo(tokenResponse.access_token);
+      let userInfo = await oauthProvider.getUserInfo(tokenResponse.access_token);
 
-      // Validate required fields
-      if (!userInfo.id || !userInfo.email) {
-        throw new Error("User info missing required fields (id, email)");
+      // Validate required id field
+      if (!userInfo.id) {
+        throw new Error("User info missing required field (id)");
       }
 
       // At this point we know refresh_token exists, so we can assert it
@@ -148,25 +148,34 @@ export namespace OAuthService {
         refresh_token: tokenResponse.refresh_token,
       };
 
-      // Use transaction if provided, otherwise start a new one
-      if (options?.tx) {
-        return await executeOAuthCallbackTransaction(
-          provider,
-          tokenResponseWithRefresh,
-          userInfo,
-          oauthProvider,
-          options.tx,
-        );
-      }
+      const runCallback = async (tx: DBTransaction) => {
+        // Apple (and similar providers) may omit email on repeat sign-ins
+        if (!userInfo.email) {
+          const existingUser = await UsersService.findByProviderAccountId(userInfo.id, { tx });
 
-      return await db.transaction(async (tx) => {
-        const result = await executeOAuthCallbackTransaction(
+          if (!existingUser?.email) {
+            throw new Error("User info missing required fields (id, email)");
+          }
+
+          userInfo = { ...userInfo, email: existingUser.email };
+        }
+
+        return executeOAuthCallbackTransaction(
           provider,
           tokenResponseWithRefresh,
           userInfo,
           oauthProvider,
           tx,
         );
+      };
+
+      // Use transaction if provided, otherwise start a new one
+      if (options?.tx) {
+        return await runCallback(options.tx);
+      }
+
+      return await db.transaction(async (tx) => {
+        const result = await runCallback(tx);
 
         // Track successful OAuth login
         oauthEventsCounter.inc({ provider, event_type: "login:success" });

@@ -1,0 +1,91 @@
+---
+description: Structured logging, Prometheus metrics, and environment validation
+globs: "{packages/shared/**,packages/config/**,apps/api/src/env.ts,apps/api/src/**/*.metrics.ts}"
+alwaysApply: false
+---
+
+# Logging, Metrics & Environment
+
+## Structured Logging
+
+Use `logger` from `@repo/shared`:
+
+```typescript
+logger.info("OAuth flow initiated", { module: "auth", action: "oauth:start", provider });
+logger.error("Failed to exchange code", { module: "auth", action: "oauth:google:exchange_code", error: err, status: 400 });
+logger.audit("user updated", { module: "users", action: "service:updateById" });
+```
+
+**Required metadata:** `module` + `action` on every log call.
+
+| module | use for |
+|--------|---------|
+| `auth` | OAuth, JWT, login flows |
+| `users` | User CRUD |
+| `db` | Connection, migrations |
+| `session` | Session lifecycle |
+| `security` | Encryption, token decrypt |
+| `system` | Startup, shutdown |
+| `http` | Request logging |
+
+**Action format:** `context:operation` (e.g. `oauth:callback`, `service:create`, `token:sign`).
+
+**Never log:** tokens, secrets, passwords, encryption keys, raw PII beyond IDs.
+
+## Metrics
+
+**HTTP** — auto-collected via `metricsMiddleware()` in app bootstrap.
+
+**DB** — wrap queries with `withMetrics("insert"|"select"|"update"|"delete", "table_name", fn)`.
+
+**Domain** — create `{module}.metrics.ts` next to routes:
+
+```typescript
+import { Counter } from "prom-client";
+import { metricsRegistry } from "@repo/shared/metrics";
+
+export const oauthEventsCounter = new Counter({
+  name: "oauth_events_total",
+  help: "Total number of OAuth events",
+  labelNames: ["provider", "event_type"],
+  registers: [metricsRegistry],
+});
+```
+
+Register counters with `metricsRegistry`. Endpoint: `GET /metrics`.
+
+## Environment Variables
+
+**Base schema** (`packages/config/src/env.ts`): `NODE_ENV`, `LOG_LEVEL`, `LOKI_HOST`.
+
+**App schema** (`apps/api/src/env.ts`): extends base with API-specific vars. Pattern:
+
+```typescript
+const apiEnvSchema = baseEnvSchema.extend({
+  MY_NEW_VAR: z.string({ message: "MY_NEW_VAR is required" }),
+});
+
+export const env = apiEnvSchema.parse({
+  NODE_ENV: process.env.NODE_ENV,
+  // ... explicit mapping for every field
+});
+```
+
+- Validate at startup via Zod — fail fast.
+- Use `env` from `@/env` in API code, never raw `process.env`.
+- `ENCRYPTION_KEY`: 64-char hex (32 bytes for AES-256-GCM).
+- `JWT_SECRET`: min 32 characters.
+
+## Security Utilities (@repo/shared)
+
+```typescript
+import { signJwt, verifyJwt, generateStateToken, encrypt, decrypt } from "@repo/shared";
+
+const state = signJwt({ state: generateStateToken() }, env.JWT_SECRET, { expiresIn: "10m" });
+const { data, iv, tag } = encrypt(plaintext, env.ENCRYPTION_KEY);
+const plaintext = decrypt(data, env.ENCRYPTION_KEY, iv, tag);
+```
+
+## Error Schemas
+
+Import `errorResponseSchemas` from `@repo/shared` (not `@repo/config`). Provides OpenAPI schemas for 400, 401, 403, 404, 429, 500.

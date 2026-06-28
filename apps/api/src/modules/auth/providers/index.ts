@@ -1,5 +1,6 @@
 import { SessionProvider } from "@repo/db";
 import { type OAuthProvider, type OAuthProviderFactory } from "@repo/shared";
+import { AppleOAuthProvider } from "./apple.provider";
 import { GoogleOAuthProvider } from "./google.provider";
 
 /**
@@ -12,6 +13,7 @@ class OAuthProviderFactoryImpl implements OAuthProviderFactory {
   constructor() {
     // Register all OAuth providers
     this.register(SessionProvider.GOOGLE, () => new GoogleOAuthProvider());
+    this.register(SessionProvider.APPLE, () => new AppleOAuthProvider());
     // Add more providers here:
     // this.register(SessionProvider.GITHUB, () => new GitHubOAuthProvider());
     // this.register(SessionProvider.DISCORD, () => new DiscordOAuthProvider());
@@ -62,4 +64,5 @@ export type {
   OAuthUserInfo,
   OAuthProviderFactory,
 } from "@repo/shared";
+export { AppleOAuthProvider } from "./apple.provider";
 export { GoogleOAuthProvider } from "./google.provider";

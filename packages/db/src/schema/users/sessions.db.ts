@@ -14,6 +14,7 @@ export interface SessionMetadata {
 
 export enum SessionProvider {
   GOOGLE = "google",
+  APPLE = "apple",
 }
 
 export enum SessionStatus {

@@ -1,0 +1,88 @@
+---
+description: JSDoc and inline comment standards for services, providers, and shared code
+globs: "{apps/api/**/*.ts,packages/**/*.ts}"
+alwaysApply: false
+---
+
+# Code Comments
+
+Comments explain **why** and **non-obvious behavior** — not what the code literally does. Good code should be self-explanatory for simple operations.
+
+## When Comments Are Required
+
+| Location | Requirement |
+|----------|-------------|
+| Exported service functions | JSDoc with `@param`, `@returns`, and brief purpose |
+| Provider classes | Class-level JSDoc; JSDoc on public interface methods |
+| Complex business logic | Inline comment for non-obvious steps (race conditions, provider quirks) |
+| Enums / config schemas | Brief file-level or export comment when values aren't self-evident |
+| Middleware | JSDoc explaining what context vars are set and when |
+| Metrics modules | File-level comment listing what is tracked |
+
+## JSDoc Pattern (Services & Providers)
+
+```typescript
+/**
+ * Exchange an authorization code for OAuth tokens.
+ * @param code - Authorization code from the provider callback
+ * @returns Token response including access_token and optional refresh_token
+ */
+async exchangeCodeForToken(code: string): Promise<OAuthTokenResponse> {
+```
+
+```typescript
+/**
+ * Creates or updates a user by provider account ID.
+ * Must run inside a transaction to prevent duplicate users on concurrent callbacks.
+ * @param payload - User fields from the OAuth provider
+ * @param options.tx - Required database transaction
+ */
+export async function upsertByProviderAccountId(payload: NewUser, options?: { tx?: DBTransaction })
+```
+
+Use `@throws` when the function throws domain-specific errors callers must handle.
+
+## Inline Comments (Sparingly)
+
+Use for business rules that aren't obvious from names:
+
+```typescript
+// Google doesn't always return a new refresh token on refresh — keep the old one if missing
+return tokenData;
+
+// Handle missing name fields from providers that omit given_name/family_name
+const firstName = userInfo.given_name || userInfo.name?.split(" ")[0] || "User";
+```
+
+## When NOT to Comment
+
+```typescript
+// BAD — restates the code
+// Get the user from the database
+const user = await UsersService.findById(id);
+
+// BAD — outdated or obvious
+// TODO: fix this later
+const result = await fetch(url);
+```
+
+Do not add comments on every line, every handler, or every variable.
+
+## Handlers vs Services
+
+- **Handlers:** OpenAPI `summary` / `description` / `.openapi()` metadata replaces most comments. Add inline comments only for tricky HTTP behavior (cookies, redirects, status edge cases).
+- **Services & providers:** JSDoc on exported functions is required.
+- **DB services:** JSDoc on each exported namespace function (match `UsersService` style in `packages/db`).
+
+## Types & Interfaces
+
+Public types in `apps/api/src/types.ts` and shared packages should have JSDoc when they define contracts others consume:
+
+```typescript
+/** Application-wide Hono bindings populated by getUserMiddleware */
+export interface AppBindings { ... }
+```
+
+## Keep Comments Accurate
+
+Update or remove comments when behavior changes. Stale comments are worse than none.

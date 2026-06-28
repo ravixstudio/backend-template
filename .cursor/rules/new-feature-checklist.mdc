@@ -1,0 +1,57 @@
+---
+description: Step-by-step checklist for adding new API features or endpoints
+alwaysApply: false
+---
+
+# New Feature Checklist
+
+Use when adding a module, endpoint, OAuth provider, or DB entity.
+
+## New API Endpoint
+
+1. Create `apps/api/src/modules/{feature}/handlers/{method}-{resource}.handler.ts`
+   - `createRoute` + `AppRouteHandler` + `...errorResponseSchemas`
+   - Path: `/v1/{resource}/{param}`
+   - **Scalar docs:** `tags`, `summary`, `description` on route; `.openapi({ example, description })` on every param and response field
+   - Verify endpoint in Scalar at `/docs` before merging
+2. Add business logic in `services/` if non-trivial
+3. Register in `{feature}.routes.ts` via `router.openapi(route, handler)`
+4. Mount router in `apps/api/src/index.ts`
+5. Add rate limiter if sensitive (`authRateLimiter` / `strictRateLimiter`)
+6. Add domain metrics in `{feature}.metrics.ts` if tracking events
+
+## New OAuth Provider
+
+See `oauth-providers.mdc`. Minimum touch points:
+- `providers/{name}.provider.ts`
+- `providers/index.ts` (register + export)
+- `SessionProvider` enum in `packages/db`
+- `apps/api/src/env.ts`
+- Handler route enums
+- DB migration
+
+## New DB Table
+
+1. Schema: `packages/db/src/schema/{domain}/{table}.db.ts`
+2. Export from `schema/index.ts`
+3. Service: `packages/db/src/services/{table}.service.ts` (namespace + withMetrics)
+4. Export from `packages/db/src/index.ts`
+5. `bun run db:generate && bun run db:migrate`
+
+## New Workspace Package
+
+1. `packages/{name}/package.json` → `"name": "@repo/{name}"`
+2. `tsconfig.json` extending root
+3. Export public API from `src/index.ts`
+4. Add `"@repo/{name}": "workspace:*"` to consumers
+5. `bun install`
+
+## Before Finishing
+
+- [ ] `bun run type-check` passes
+- [ ] `bun run lint` passes
+- [ ] Scalar/OpenAPI: `tags`, `summary`, `description`, examples on all schema fields, `...errorResponseSchemas`
+- [ ] Checked `/docs` in browser — endpoint renders correctly with examples
+- [ ] JSDoc on new exported service/provider/DB functions
+- [ ] No secrets in code or commits
+- [ ] Logging on error paths with `module` + `action`

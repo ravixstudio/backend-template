@@ -1,0 +1,59 @@
+---
+description: Monorepo stack, structure, and core conventions for server-template
+alwaysApply: true
+---
+
+# Server Template — Project Overview
+
+**Stack:** Turborepo monorepo · **Bun** runtime · **Hono** + `@hono/zod-openapi` · **PostgreSQL** + **Drizzle ORM** · **Pino** logging · **Prometheus** metrics
+
+## Monorepo Layout
+
+```
+apps/api/           → @repo/api — HTTP API (OAuth, endpoints)
+packages/config/    → @repo/config — Zod env schemas, StatusCodes
+packages/db/        → @repo/db — Drizzle schemas, services, connection
+packages/shared/    → @repo/shared — logger, JWT, encryption, middleware, metrics
+infra/monitoring/   → Prometheus, Grafana, Loki configs
+docs/               → ARCHITECTURE, AUTHENTICATION, DATABASE, LOGGING, MONITORING
+```
+
+**Dependency flow:** `apps/api` → `@repo/db`, `@repo/shared`, `@repo/config`. Packages must not import from `apps/`.
+
+## Commands
+
+```bash
+bun run dev                    # all services
+bun run dev:api                # API only
+bun run db:generate            # generate Drizzle migrations
+bun run db:migrate             # apply migrations
+bun run lint && bun run type-check
+docker compose -f docker-compose.dev.yml up -d   # Postgres + monitoring
+```
+
+## Universal Conventions
+
+1. **Runtime:** Bun, not Node. Use `bun install`, `bun run`.
+2. **Imports:** `import type { X }` for type-only imports (`consistent-type-imports` ESLint rule).
+3. **Status codes:** Always `StatusCodes` from `@repo/config` — never raw numbers.
+4. **Path alias:** `@/*` maps to `apps/api/src/*` in the API app.
+5. **API prefix:** Routes use `/v1/` in the path (e.g. `/v1/oauth/{provider}`).
+6. **OpenAPI path params:** Use `{param}` in path; access via `c.req.valid("param")` (singular, not `"params"`).
+7. **Error responses:** Spread `...errorResponseSchemas` from `@repo/shared` in every route.
+8. **Errors in handlers:** Throw `HTTPException` from `hono/http-exception` with `StatusCodes`.
+9. **No console.log:** Use `logger` from `@repo/shared` (ESLint blocks console except warn/error).
+10. **API docs:** All endpoints must be fully documented in OpenAPI schemas for Scalar at `/docs` (`summary`, `description`, `.openapi()` examples on every field).
+11. **Comments:** JSDoc on exported services/providers/DB functions; inline comments only for non-obvious logic.
+12. **Scope:** Minimal diffs. Match existing patterns. Do not add tests unless requested.
+
+## Adding a New App Service
+
+Create `apps/{name}/package.json` with `"name": "@repo/{name}"`, add workspace deps (`@repo/shared`, `@repo/db`), run `bun install`.
+
+## Key Reference Files
+
+- Handler pattern: `apps/api/src/modules/auth/handlers/get-oauth.handler.ts`
+- Route registration: `apps/api/src/modules/auth/auth.routes.ts`
+- OAuth provider: `apps/api/src/modules/auth/providers/google.provider.ts`
+- DB service: `packages/db/src/services/users.service.ts`
+- App bootstrap: `apps/api/src/index.ts`

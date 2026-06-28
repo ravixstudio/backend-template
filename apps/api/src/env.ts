@@ -17,6 +17,13 @@ const apiEnvSchema = baseEnvSchema.extend({
   GOOGLE_CLIENT_SECRET: z.string({ message: "GOOGLE_CLIENT_SECRET is required" }),
   GOOGLE_REDIRECT_URI: z.string({ message: "GOOGLE_REDIRECT_URI is required" }),
 
+  // OAuth - Apple
+  APPLE_CLIENT_ID: z.string({ message: "APPLE_CLIENT_ID is required" }),
+  APPLE_TEAM_ID: z.string({ message: "APPLE_TEAM_ID is required" }),
+  APPLE_KEY_ID: z.string({ message: "APPLE_KEY_ID is required" }),
+  APPLE_PRIVATE_KEY: z.string({ message: "APPLE_PRIVATE_KEY is required" }),
+  APPLE_REDIRECT_URI: z.string({ message: "APPLE_REDIRECT_URI is required" }),
+
   // Security
   ENCRYPTION_KEY: z.string({ message: "ENCRYPTION_KEY is required" }).refine(
     (val) => {
@@ -61,6 +68,11 @@ export const env = apiEnvSchema.parse({
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
   GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI,
+  APPLE_CLIENT_ID: process.env.APPLE_CLIENT_ID,
+  APPLE_TEAM_ID: process.env.APPLE_TEAM_ID,
+  APPLE_KEY_ID: process.env.APPLE_KEY_ID,
+  APPLE_PRIVATE_KEY: process.env.APPLE_PRIVATE_KEY,
+  APPLE_REDIRECT_URI: process.env.APPLE_REDIRECT_URI,
   CORS_ORIGIN: process.env.CORS_ORIGIN,
   FRONTEND_URL: process.env.FRONTEND_URL,
   POSTGRES_PORT: process.env.POSTGRES_PORT,

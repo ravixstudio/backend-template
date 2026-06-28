@@ -1,0 +1,104 @@
+---
+description: Hono OpenAPI handler and route registration patterns for the API
+globs: apps/api/**/*.ts
+alwaysApply: false
+---
+
+# API Handlers & Routes
+
+> **Docs:** Every route must have complete OpenAPI metadata for Scalar (`/docs`). See `openapi-scalar-docs.mdc`.
+> **Comments:** Handlers rely on OpenAPI descriptions; services/providers need JSDoc. See `code-comments.mdc`.
+
+## Module Structure
+
+Each feature lives in `apps/api/src/modules/{feature}/`:
+
+```
+{feature}/
+├── {feature}.routes.ts    # Router — imports handlers, calls .openapi()
+├── {feature}.metrics.ts   # Optional Prometheus counters (domain-specific)
+├── handlers/              # One file per endpoint — route + handler colocated
+├── services/              # Business logic (no HTTP concerns)
+└── providers/             # External integrations (OAuth, etc.)
+```
+
+## Handler Pattern (Required)
+
+Colocate `createRoute` and handler in the same file:
+
+```typescript
+import { createRoute, z } from "@hono/zod-openapi";
+import { StatusCodes } from "@repo/config";
+import { errorResponseSchemas } from "@repo/shared";
+import { HTTPException } from "hono/http-exception";
+import { type AppRouteHandler } from "@/types";
+
+export const getResourceRoute = createRoute({
+  method: "get",
+  path: "/v1/resource/{id}",
+  tags: ["Resource"],
+  summary: "Get resource",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ param: { in: "path", name: "id" } }),
+    }),
+  },
+  responses: {
+    [StatusCodes.HTTP_200_OK]: {
+      description: "Success",
+      content: { "application/json": { schema: z.object({ message: z.string() }) } },
+    },
+    ...errorResponseSchemas,
+  },
+});
+
+export type GetResourceRoute = typeof getResourceRoute;
+
+export const getResourceHandler: AppRouteHandler<GetResourceRoute> = async (c) => {
+  const { id } = c.req.valid("param");
+  return c.json({ message: "ok" }, StatusCodes.HTTP_200_OK);
+};
+```
+
+**Rules:**
+- Use `AppRouteHandler<RouteType>` from `@/types` (not raw `RouteHandler`) for typed `c.get("user")` / `c.get("session")`.
+- Export `export type XxxRoute = typeof xxxRoute` alongside the route.
+- Validate input only via route schema — use `c.req.valid("param" | "query" | "json")`.
+- JSON response shape: `{ message: string, payload?: T }` for success responses.
+
+## Route Registration
+
+Keep route files minimal — no business logic:
+
+```typescript
+import { createRouter, authRateLimiter } from "@repo/shared";
+import { type AppBindings } from "@/types";
+import { getResourceRoute, getResourceHandler } from "./handlers/get-resource.handler";
+
+const router = createRouter<AppBindings>();
+router.use(authRateLimiter); // when needed
+router.openapi(getResourceRoute, getResourceHandler);
+export default router;
+```
+
+Register in `apps/api/src/index.ts`: `app.route("/", featureRoutes)`.
+
+## Auth Middleware
+
+- `getUserMiddleware` — global; parses JWT, sets `c.var.user` / `c.var.session` (may be undefined).
+- `enforceUserMiddleware` — route-level; throws 401 if no valid session.
+- `enforceRoleMiddleware` — route-level; role checks after auth.
+
+Protected handlers access: `const user = c.get("user")`.
+
+## Rate Limiting
+
+- `globalRateLimiter` — applied in `index.ts` (all routes).
+- `authRateLimiter` — auth module routes.
+- `strictRateLimiter` — sensitive operations.
+
+## Services vs Handlers
+
+- **Handlers:** HTTP validation, status codes, cookies, redirects.
+- **Services** (`modules/{feature}/services/`): business logic, orchestration, token operations.
+- **DB access:** via `@repo/db` service namespaces — never raw Drizzle in handlers.

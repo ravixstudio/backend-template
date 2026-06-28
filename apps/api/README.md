@@ -31,6 +31,7 @@ Copy `.env.example` from the root to `.env` and configure:
 
 - `DATABASE_URL`
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+- `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_REDIRECT_URI`
 - `ENCRYPTION_KEY` (64-char hex string for AES-256)
 - `JWT_SECRET` (min 32 chars)
 

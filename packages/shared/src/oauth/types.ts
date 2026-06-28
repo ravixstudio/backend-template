@@ -61,6 +61,8 @@ export interface OAuthTokenResponse {
   expires_in?: number; // Token lifetime in seconds
   token_type?: string;
   scope?: string;
+  /** OIDC id_token — returned by Apple and other OIDC providers */
+  id_token?: string;
 }
 
 /**
