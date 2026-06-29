@@ -12,6 +12,10 @@ import {
   postRefreshTokenRoute,
   postRefreshTokenHandler,
 } from "./handlers/post-refresh-token.handler";
+import {
+  getOauthSessionEstablishRoute,
+  getOauthSessionEstablishHandler,
+} from "./handlers/get-oauth-session-establish.handler";
 import { type AppBindings } from "../../types";
 import { getMeHandler, getMeRoute } from "./handlers/get-me.handler";
 import { getLogoutHandler, getLogoutRoute } from "./handlers/get-logout.handler";
@@ -25,6 +29,7 @@ authRoutes.use(authRateLimiter);
 authRoutes.openapi(getOauthProviderRoute, getOauthHandler);
 authRoutes.openapi(getOauthCallbackRoute, getOauthCallbackHandler);
 authRoutes.openapi(postOauthAppleCallbackRoute, postOauthAppleCallbackHandler);
+authRoutes.openapi(getOauthSessionEstablishRoute, getOauthSessionEstablishHandler);
 authRoutes.openapi(postRefreshTokenRoute, postRefreshTokenHandler);
 authRoutes.openapi(getMeRoute, getMeHandler);
 authRoutes.openapi(getLogoutRoute, getLogoutHandler);
