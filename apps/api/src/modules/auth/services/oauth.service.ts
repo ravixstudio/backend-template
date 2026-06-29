@@ -16,6 +16,94 @@ export interface OAuthCallbackResult {
   session: Awaited<ReturnType<typeof SessionService.create>>;
 }
 
+type OAuthUserInfoPayload = {
+  id: string;
+  email: string;
+  given_name?: string;
+  family_name?: string;
+  name?: string;
+  picture?: string;
+};
+
+function capitalizeNamePart(part: string): string {
+  if (!part) {
+    return part;
+  }
+
+  return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+}
+
+function namesFromEmailLocalPart(email: string): { firstName: string; lastName: string } | null {
+  const localPart = email.split("@")[0]?.trim();
+  if (!localPart) {
+    return null;
+  }
+
+  const parts = localPart.split(/[._-]+/).filter(Boolean);
+  if (parts.length === 0) {
+    return null;
+  }
+
+  return {
+    firstName: capitalizeNamePart(parts[0]),
+    lastName: parts.slice(1).map(capitalizeNamePart).join(" "),
+  };
+}
+
+function isPlaceholderName(firstName: string | undefined, email: string): boolean {
+  if (!firstName || firstName === "User") {
+    return true;
+  }
+
+  const emailLocalPart = email.split("@")[0]?.toLowerCase();
+  return emailLocalPart ? firstName.toLowerCase() === emailLocalPart : false;
+}
+
+/**
+ * Resolves display names from OAuth user info, preserving existing DB values when
+ * providers omit name on repeat sign-in (e.g. Apple after the first authorization).
+ */
+function resolveOAuthNameFields(
+  userInfo: OAuthUserInfoPayload,
+  existingUser?: { firstName: string; lastName: string | null } | null,
+): { firstName: string; lastName: string } {
+  const givenName = userInfo.given_name?.trim();
+  const familyName = userInfo.family_name?.trim();
+  const fullName = userInfo.name?.trim();
+
+  let firstName = givenName || fullName?.split(/\s+/)[0];
+  let lastName =
+    familyName ??
+    (fullName?.includes(" ") ? fullName.split(/\s+/).slice(1).join(" ") : undefined);
+
+  if (!firstName && existingUser?.firstName && !isPlaceholderName(existingUser.firstName, userInfo.email)) {
+    firstName = existingUser.firstName;
+  }
+
+  if (lastName === undefined && existingUser?.lastName != null) {
+    lastName = existingUser.lastName;
+  }
+
+  if (!firstName || isPlaceholderName(firstName, userInfo.email)) {
+    const fromEmail = namesFromEmailLocalPart(userInfo.email);
+    if (fromEmail) {
+      firstName = fromEmail.firstName;
+      if (!lastName) {
+        lastName = fromEmail.lastName;
+      }
+    }
+  }
+
+  if (!firstName) {
+    firstName = "User";
+  }
+
+  return {
+    firstName,
+    lastName: lastName ?? "",
+  };
+}
+
 /**
  * Execute OAuth callback transaction logic
  */
@@ -27,20 +115,12 @@ async function executeOAuthCallbackTransaction(
     expires_in?: number;
     scope?: string;
   },
-  userInfo: {
-    id: string;
-    email: string;
-    given_name?: string;
-    family_name?: string;
-    name?: string;
-    picture?: string;
-  },
+  userInfo: OAuthUserInfoPayload,
   oauthProvider: OAuthProvider,
   tx: DBTransaction,
 ): Promise<OAuthCallbackResult> {
-  // Handle missing name fields
-  const firstName = userInfo.given_name || userInfo.name?.split(" ")[0] || "User";
-  const lastName = userInfo.family_name || userInfo.name?.split(" ").slice(1).join(" ") || "";
+  const existingUser = await UsersService.findByProviderAccountId(userInfo.id, { tx });
+  const { firstName, lastName } = resolveOAuthNameFields(userInfo, existingUser);
 
   // Create or update user
   const user = await UsersService.upsertByProviderAccountId(
@@ -119,8 +199,8 @@ export namespace OAuthService {
   ): Promise<OAuthCallbackResult> {
     const oauthProvider = oauthProviderFactory.getProvider(provider);
 
-    if (options?.callbackData && oauthProvider.setCallbackData) {
-      oauthProvider.setCallbackData(options.callbackData);
+    if (oauthProvider.setCallbackData) {
+      oauthProvider.setCallbackData(options?.callbackData ?? {});
     }
 
     try {

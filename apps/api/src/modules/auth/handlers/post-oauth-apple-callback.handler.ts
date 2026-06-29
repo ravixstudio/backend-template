@@ -95,12 +95,21 @@ export const postOauthAppleCallbackHandler: AppRouteHandler<PostOauthAppleCallba
 ) => {
   const body = c.req.valid("form");
 
+  // Fallback: ensure Apple's first-time `user` JSON is captured from the raw form body
+  let userPayload = body.user;
+  if (!userPayload) {
+    const rawBody = await c.req.parseBody();
+    if (typeof rawBody.user === "string") {
+      userPayload = rawBody.user;
+    }
+  }
+
   return processOauthCallback(c, {
     provider: SessionProvider.APPLE,
     code: body.code,
     state: body.state,
     error: body.error,
-    user: body.user,
+    user: userPayload,
     id_token: body.id_token,
   });
 };

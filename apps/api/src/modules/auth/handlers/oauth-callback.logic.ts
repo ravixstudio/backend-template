@@ -6,8 +6,12 @@ import { oauthProviderFactory } from "../providers";
 import { type SessionProvider } from "@repo/db";
 import { env } from "@/env";
 import { type AppBindings } from "@/types";
-import { setCookie } from "hono/cookie";
 import { type Context } from "hono";
+import { OAUTH_SESSION_TICKET_PURPOSE } from "./get-oauth-session-establish.handler";
+
+function getApiOrigin(): string {
+  return new URL(env.GOOGLE_REDIRECT_URI).origin;
+}
 
 export interface OauthCallbackParams {
   provider: SessionProvider;
@@ -110,8 +114,7 @@ export async function processOauthCallback(
 
   try {
     const result = await OAuthService.handleCallback(provider, code, {
-      callbackData:
-        user || id_token ? { user, idToken: id_token } : undefined,
+      callbackData: { user, idToken: id_token },
     });
 
     const { user: authUser, session } = result;
@@ -148,23 +151,21 @@ export async function processOauthCallback(
       });
     }
 
-    setCookie(c, "refresh_token", serverRefreshToken, {
-      httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 90 * 24 * 60 * 60,
-    });
+    const sessionTicket = signJwt(
+      {
+        accessToken: serverAccessToken,
+        refreshToken: serverRefreshToken,
+        purpose: OAUTH_SESSION_TICKET_PURPOSE,
+      },
+      env.JWT_SECRET,
+      { expiresIn: "60s" },
+    );
 
-    setCookie(c, "access_token", serverAccessToken, {
-      httpOnly: false,
-      secure: env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60,
-    });
+    const establishUrl = new URL("/v1/oauth/session/establish", getApiOrigin());
+    establishUrl.searchParams.set("ticket", sessionTicket);
+    establishUrl.searchParams.set("next", env.FRONTEND_URL);
 
-    return c.redirect(env.FRONTEND_URL);
+    return c.redirect(establishUrl.toString());
   } catch (err: unknown) {
     if (err instanceof HTTPException) {
       throw err;

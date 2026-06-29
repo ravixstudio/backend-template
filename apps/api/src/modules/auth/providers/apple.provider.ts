@@ -76,6 +76,43 @@ interface AppleFirstTimeUser {
   email?: string;
 }
 
+function parseAppleFirstTimeUser(raw: string): AppleFirstTimeUser | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as {
+      name?: { firstName?: string; lastName?: string } | string;
+      email?: string;
+    };
+
+    if (typeof parsed.name === "string") {
+      const nameParts = parsed.name.trim().split(/\s+/);
+      return {
+        email: parsed.email,
+        name: {
+          firstName: nameParts[0],
+          lastName: nameParts.slice(1).join(" ") || undefined,
+        },
+      };
+    }
+
+    return {
+      email: parsed.email,
+      name: parsed.name
+        ? {
+            firstName: parsed.name.firstName?.trim(),
+            lastName: parsed.name.lastName?.trim(),
+          }
+        : undefined,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Apple Sign In OAuth provider.
  *
@@ -149,9 +186,10 @@ export class AppleOAuthProvider implements OAuthProvider {
     }
 
     if (data.user) {
-      try {
-        this.firstTimeUser = JSON.parse(data.user) as AppleFirstTimeUser;
-      } catch {
+      const parsedUser = parseAppleFirstTimeUser(data.user);
+      if (parsedUser) {
+        this.firstTimeUser = parsedUser;
+      } else {
         logger.warn("Failed to parse Apple first-time user payload from callback", {
           module: "auth",
           action: "oauth:apple:parse_user",
@@ -222,9 +260,10 @@ export class AppleOAuthProvider implements OAuthProvider {
       }
 
       if (tokenData.user) {
-        try {
-          this.firstTimeUser = JSON.parse(tokenData.user) as AppleFirstTimeUser;
-        } catch {
+        const parsedUser = parseAppleFirstTimeUser(tokenData.user);
+        if (parsedUser) {
+          this.firstTimeUser = parsedUser;
+        } else {
           logger.warn("Failed to parse Apple first-time user payload", {
             module: "auth",
             action: "oauth:apple:parse_user",
