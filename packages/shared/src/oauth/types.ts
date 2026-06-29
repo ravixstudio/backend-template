@@ -37,6 +37,12 @@ export interface OAuthProvider {
   getUserInfo(accessToken: string): Promise<OAuthUserInfo>;
 
   /**
+   * Optional hook for providers that receive extra data in the OAuth callback
+   * (e.g. Apple form_post sends `user` and `id_token` in the POST body).
+   */
+  setCallbackData?(data: { user?: string; idToken?: string }): void;
+
+  /**
    * Get default scopes for this provider
    */
   getDefaultScopes(): string[];

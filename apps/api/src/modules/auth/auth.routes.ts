@@ -5,6 +5,10 @@ import {
   getOauthCallbackHandler,
 } from "./handlers/get-oauth-callback.handler";
 import {
+  postOauthAppleCallbackRoute,
+  postOauthAppleCallbackHandler,
+} from "./handlers/post-oauth-apple-callback.handler";
+import {
   postRefreshTokenRoute,
   postRefreshTokenHandler,
 } from "./handlers/post-refresh-token.handler";
@@ -20,6 +24,7 @@ authRoutes.use(authRateLimiter);
 // Register routes - each handler defines its own OpenAPI schema
 authRoutes.openapi(getOauthProviderRoute, getOauthHandler);
 authRoutes.openapi(getOauthCallbackRoute, getOauthCallbackHandler);
+authRoutes.openapi(postOauthAppleCallbackRoute, postOauthAppleCallbackHandler);
 authRoutes.openapi(postRefreshTokenRoute, postRefreshTokenHandler);
 authRoutes.openapi(getMeRoute, getMeHandler);
 authRoutes.openapi(getLogoutRoute, getLogoutHandler);
