@@ -37,45 +37,6 @@ export namespace TokenService {
   }
 
   /**
-   * Get a valid access token for a session, refreshing if necessary
-   * @param sessionId - Session ID
-   * @returns Valid access token
-   */
-  export async function getValidAccessToken(sessionId: string): Promise<string> {
-    const session = await SessionService.findById(sessionId);
-
-    if (!session) {
-      throw new Error("Session not found");
-    }
-
-    if (session.status !== SessionStatus.ACTIVE) {
-      throw new Error("Session is not active");
-    }
-
-    // Check if access token is still valid
-    if (!isAccessTokenExpired(session)) {
-      // Decrypt and return existing access token
-      return decrypt(
-        session.providerAccessToken,
-        session.providerAccessTokenIv,
-        session.providerAccessTokenTag,
-        env.ENCRYPTION_KEY,
-      );
-    }
-
-    // Access token expired, refresh it
-    logger.info("Access token expired, refreshing", {
-      module: "auth",
-      action: "token:refresh",
-      sessionId,
-    });
-
-    const refreshResult = await refreshAccessToken(sessionId);
-
-    return refreshResult.accessToken;
-  }
-
-  /**
    * Refresh access token using refresh token
    * @param sessionId - Session ID
    * @param options - Optional database transaction

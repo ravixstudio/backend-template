@@ -6,9 +6,9 @@ alwaysApply: false
 
 # OAuth Providers
 
-Reference implementation: `providers/google.provider.ts`.
+Reference implementations: `providers/google.provider.ts`, `providers/apple.provider.ts`.
 
-Document provider-specific OAuth quirks in JSDoc (e.g. token refresh behavior, missing user fields). Handler routes for the provider must follow `openapi-scalar-docs.mdc`.
+Document provider-specific OAuth quirks in JSDoc (e.g. token refresh behavior, missing user fields, Apple `form_post` callback). Handler routes for the provider must follow `openapi-scalar-docs.mdc`.
 
 ## Provider Class
 
@@ -52,9 +52,10 @@ export class GoogleOAuthProvider implements OAuthProvider {
    Enum drives `pgEnum` via `enumToPgEnum(SessionProvider)`.
 4. **Env vars** — extend `apps/api/src/env.ts` schema + parse block
 5. **Route enums** — handlers use `z.nativeEnum(SessionProvider)` or `z.enum(SessionProvider)` for provider param
-6. **Migration** — `bun run db:generate && bun run db:migrate`
-7. **Metrics** — increment `oauthEventsCounter` in callback handler (`provider`, `event_type` labels)
-8. **Export** — add to `providers/index.ts` exports if needed
+6. **Apple callback** — if provider uses `form_post`, add `POST /v1/oauth/{provider}/callback` handler (see `post-oauth-apple-callback.handler.ts`)
+7. **Migration** — `bun run db:generate && bun run db:migrate`
+8. **Metrics** — increment `oauthEventsCounter` in callback handler (`provider`, `event_type` labels)
+9. **Export** — add to `providers/index.ts` exports if needed
 
 ## OAuth Flow (Do Not Break)
 

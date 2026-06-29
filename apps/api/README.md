@@ -27,13 +27,24 @@ bun run db:migrate
 
 ## Environment Variables
 
-Copy `.env.example` from the root to `.env` and configure:
+Copy `apps/api/.env.example` to `apps/api/.env` and configure:
 
 - `DATABASE_URL`
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
 - `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_REDIRECT_URI`
 - `ENCRYPTION_KEY` (64-char hex string for AES-256)
 - `JWT_SECRET` (min 32 chars)
+
+See [AUTHENTICATION.md](../../docs/AUTHENTICATION.md) for full OAuth setup, including Apple Sign In with ngrok for local development.
+
+## OAuth Providers
+
+| Provider | Initiate | Callback |
+| -------- | -------- | -------- |
+| Google | `GET /v1/oauth/google` | `GET /v1/oauth/google/callback` |
+| Apple | `GET /v1/oauth/apple` | `POST /v1/oauth/apple/callback` |
+
+Apple uses `response_mode=form_post` (required when `name`/`email` scopes are requested), so the callback is a **POST** with `application/x-www-form-urlencoded` body fields: `code`, `state`, and optionally `user` (first sign-in only).
 
 ## Handler Pattern
 

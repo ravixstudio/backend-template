@@ -7,7 +7,7 @@ Production-ready **Bun + Hono + TypeScript + PostgreSQL + Drizzle ORM** monorepo
 - **Monorepo**: Turborepo with Bun workspaces
 - **API Framework**: Hono with OpenAPI/Scalar docs
 - **Database**: PostgreSQL with Drizzle ORM
-- **Auth**: OAuth 2.0 (Google, extensible)
+- **Auth**: OAuth 2.0 (Google, Apple, extensible)
 - **Observability**: Prometheus + Grafana + Loki
 - **Security**: JWT, encryption, rate limiting, CSRF protection
 - **Type Safety**: Full TypeScript with Zod validation
@@ -173,6 +173,14 @@ ENCRYPTION_KEY=your-64-char-hex-encryption-key
 # OAuth - Google
 GOOGLE_CLIENT_ID=your-client-id
 GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:8000/v1/oauth/google/callback
+
+# OAuth - Apple (see docs/AUTHENTICATION.md — requires a public HTTPS URL for local dev)
+APPLE_CLIENT_ID=your-apple-services-id
+APPLE_TEAM_ID=your-apple-team-id
+APPLE_KEY_ID=your-apple-key-id
+APPLE_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----
+APPLE_REDIRECT_URI=https://your-tunnel.ngrok-free.app/v1/oauth/apple/callback
 
 # Observability
 LOG_LEVEL=info

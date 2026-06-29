@@ -18,20 +18,20 @@ The authentication system uses:
 │ Client │                │   API   │                │   Provider   │
 └────────┘                └─────────┘                └──────────────┘
     │                          │                           │
-    │  1. GET /v1/auth/oauth/google                        │
+    │  1. GET /v1/oauth/{provider}                           │
     │─────────────────────────▶│                           │
     │                          │                           │
-    │  2. 302 Redirect         │                           │
-    │     (state token)        │                           │
+    │  2. Redirect to provider │                           │
+    │     (state token in URL) │                           │
     │◀─────────────────────────│                           │
     │                          │                           │
     │  3. User authenticates at provider                   │
     │─────────────────────────────────────────────────────▶│
     │                          │                           │
-    │  4. 302 Redirect with code                           │
+    │  4. Provider callback with code                      │
     │◀─────────────────────────────────────────────────────│
     │                          │                           │
-    │  5. GET /v1/auth/oauth/google/callback?code=...      │
+    │  5. GET or POST /v1/oauth/{provider}/callback        │
     │─────────────────────────▶│                           │
     │                          │                           │
     │                          │  6. Exchange code         │
@@ -45,52 +45,155 @@ The authentication system uses:
     │                          │                           │
 ```
 
+## Supported Providers
+
+| Provider | Callback method | Notes |
+| -------- | --------------- | ----- |
+| `google` | `GET` query params | Standard OAuth 2.0 |
+| `apple`  | `POST` form body   | Requires `form_post` when `name`/`email` scopes are used |
+
 ## Endpoints
 
 ### Initiate OAuth Flow
 
 ```
-GET /v1/auth/oauth/:provider
+GET /v1/oauth/{provider}
 ```
 
-**Parameters:**
+**Path parameters:**
 
-- `provider`: OAuth provider (`google`)
+- `provider`: OAuth provider (`google`, `apple`)
 
-**Response:** 302 redirect to provider authorization URL
+**Query parameters:**
 
-**Example:**
+- `redirect` (optional): `"true"` (default) redirects to `FRONTEND_URL` after login; `"false"` returns JSON tokens
+
+**Response:** JSON with authorization URL
+
+**Examples:**
 
 ```bash
-curl -L http://localhost:8000/v1/auth/oauth/google
+# Google
+curl "http://localhost:8000/v1/oauth/google?redirect=false"
+
+# Apple (use your public API URL in production or via ngrok locally)
+curl "https://your-api.example.com/v1/oauth/apple?redirect=false"
 ```
 
 ### OAuth Callback
 
+**Google** — query parameters on GET:
+
 ```
-GET /v1/auth/oauth/:provider/callback
+GET /v1/oauth/google/callback?code=...&state=...
 ```
 
-**Query Parameters:**
+**Apple** — form fields on POST (`application/x-www-form-urlencoded`):
+
+```
+POST /v1/oauth/apple/callback
+```
+
+| Field | Description |
+| ----- | ----------- |
+| `code` | Authorization code from Apple |
+| `state` | CSRF state token |
+| `user` | JSON string with name/email — **first authorization only** |
+| `id_token` | OpenID Connect id_token (optional in callback body) |
+
+**Query parameters (Google GET callback):**
 
 - `code`: Authorization code from provider
 - `state`: CSRF state token
 
-**Response:**
+**Response (when `redirect=false`):**
 
 ```json
 {
-  "accessToken": "eyJhbGciOiJIUzI1NiIs...",
-  "refreshToken": "eyJhbGciOiJIUzI1NiIs...",
-  "expiresIn": 900,
-  "user": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "email": "user@example.com",
-    "firstName": "John",
-    "lastName": "Doe"
+  "message": "Logged in successfully",
+  "payload": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIs..."
   }
 }
 ```
+
+When `redirect=true` (default), the API sets HttpOnly cookies and redirects to `FRONTEND_URL`.
+
+## Apple Sign In Setup
+
+Apple differs from Google in several ways. Implementation lives in `apps/api/src/modules/auth/providers/apple.provider.ts`.
+
+### Environment Variables
+
+```bash
+# apps/api/.env
+APPLE_CLIENT_ID=com.example.app.web          # Services ID from Apple Developer
+APPLE_TEAM_ID=XXXXXXXXXX                     # Apple Developer Team ID
+APPLE_KEY_ID=XXXXXXXXXX                     # Sign in with Apple key ID
+APPLE_PRIVATE_KEY=-----BEGIN PRIVATE KEY----- # Contents of downloaded .p8 file
+...
+-----END PRIVATE KEY-----
+APPLE_REDIRECT_URI=https://your-api.example.com/v1/oauth/apple/callback
+```
+
+| Variable | Description |
+| -------- | ----------- |
+| `APPLE_CLIENT_ID` | **Services ID** identifier (not the App ID bundle) |
+| `APPLE_TEAM_ID` | Team ID from Apple Developer membership |
+| `APPLE_KEY_ID` | Key ID for the Sign in with Apple `.p8` private key |
+| `APPLE_PRIVATE_KEY` | PEM contents of the `.p8` file (multi-line quoted or `\n`-escaped single line) |
+| `APPLE_REDIRECT_URI` | Must match Apple Console **Return URL** exactly |
+
+### Apple Developer Console
+
+1. Enable **Sign in with Apple** on your App ID.
+2. Create a **Services ID** — use this as `APPLE_CLIENT_ID`.
+3. Configure the Services ID:
+   - **Domains and Subdomains:** your API host (e.g. `api.example.com` or `xxxx.ngrok-free.app`)
+   - **Return URLs:** `https://your-api-host/v1/oauth/apple/callback`
+4. Create a **Sign in with Apple** key, download the `.p8` file, note the **Key ID**.
+
+> **Local development:** Apple does **not** accept `localhost` as a Services ID domain. Use a tunnel (e.g. [ngrok](https://ngrok.com/)) pointing at your API port and register the ngrok hostname in Apple Console and `APPLE_REDIRECT_URI`.
+
+```bash
+# Example local setup
+ngrok http 8000
+
+# Apple Console domain:  abc123.ngrok-free.app
+# APPLE_REDIRECT_URI:    https://abc123.ngrok-free.app/v1/oauth/apple/callback
+```
+
+### Apple-Specific Behavior
+
+| Topic | Behavior |
+| ----- | -------- |
+| Client secret | ES256 JWT signed with `.p8` private key (regenerated per token request) |
+| User info | Decoded from `id_token` — no userinfo REST endpoint |
+| `response_mode` | Must be `form_post` when `name` or `email` scopes are requested |
+| First sign-in | Apple POSTs a `user` JSON blob with name/email in the callback body |
+| Repeat sign-in | Email may be omitted from `id_token`; API falls back to the stored user email |
+| Callback route | `POST /v1/oauth/apple/callback` (not GET) |
+
+### Test Apple OAuth
+
+```bash
+# 1. Get authorization URL
+curl "https://your-api.example.com/v1/oauth/apple?redirect=false"
+
+# 2. Open the `link` from the response in a browser and complete Apple sign-in
+# 3. Apple POSTs to your callback; API returns JWT tokens or redirects to FRONTEND_URL
+```
+
+## Google OAuth Setup
+
+```bash
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:8000/v1/oauth/google/callback
+```
+
+Google uses a standard GET callback and works with `localhost` for local development.
 
 ### Refresh Access Token
 
@@ -328,6 +431,7 @@ export const apiEnvSchema = baseEnvSchema.extend({
 // packages/db/src/schema/users/sessions.db.ts
 export const sessionProviderEnum = pgEnum("session_provider", [
   "google",
+  "apple",
   "github", // Add new provider
 ]);
 ```
@@ -454,14 +558,11 @@ async function callProviderApi(sessionId: string) {
 OAuth events are tracked:
 
 ```typescript
-// Increment on OAuth start
-oauthEventsCounter.inc({ provider: "google", event: "start" });
-
-// Increment on success
-oauthEventsCounter.inc({ provider: "google", event: "success" });
+// Increment on OAuth success
+oauthEventsCounter.inc({ provider: "google", event_type: "login:success" });
 
 // Increment on failure
-oauthEventsCounter.inc({ provider: "google", event: "failure" });
+oauthEventsCounter.inc({ provider: "apple", event_type: "login:error" });
 ```
 
 View in Grafana: **API Metrics Dashboard** → **OAuth Events** panel

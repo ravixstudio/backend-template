@@ -113,9 +113,15 @@ export namespace OAuthService {
     code: string,
     options?: {
       tx?: DBTransaction;
+      /** Provider-specific callback payload (e.g. Apple form_post body fields) */
+      callbackData?: { user?: string; idToken?: string };
     },
   ): Promise<OAuthCallbackResult> {
     const oauthProvider = oauthProviderFactory.getProvider(provider);
+
+    if (options?.callbackData && oauthProvider.setCallbackData) {
+      oauthProvider.setCallbackData(options.callbackData);
+    }
 
     try {
       // Exchange code for tokens
