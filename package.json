@@ -14,6 +14,8 @@
     "build": "turbo build",
     "db:generate": "turbo db:generate",
     "db:migrate": "turbo db:migrate",
+    "dodo:listen": "turbo dodo:listen",
+    "dev:all": "turbo dev & turbo dodo:listen",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
     "clean": "turbo clean && rm -rf node_modules"
@@ -28,6 +30,7 @@
   },
   "dependencies": {
     "@scalar/hono-api-reference": "^0.9.30",
+    "dodopayments": "^2.40.1",
     "hono-rate-limiter": "^0.5.1"
   }
 }

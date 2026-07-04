@@ -8,6 +8,7 @@
     "start": "bun run dist/index.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "dodo:listen": "dodo wh listen http://localhost:8000/webhooks/dodo",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -17,6 +18,7 @@
     "@repo/config": "*",
     "@repo/db": "*",
     "@repo/shared": "*",
+    "@repo/payments": "*",
     "dotenv": "^17.2.3",
     "hono": "^4.10.3",
     "jsonwebtoken": "^9.0.2",

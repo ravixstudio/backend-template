@@ -10,6 +10,10 @@
       "cache": false,
       "persistent": true
     },
+    "dodo:listen": {
+      "cache": false,
+      "persistent": true
+    },
     "start": {
       "cache": false,
       "dependsOn": ["^build"]

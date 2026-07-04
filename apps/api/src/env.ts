@@ -56,6 +56,10 @@ const apiEnvSchema = baseEnvSchema.extend({
   PROMETHEUS_PORT: z.string().optional().default("9090"),
   GRAFANA_PORT: z.string().optional().default("8001"),
   METRICS_SERVER_PORT: z.string().optional().default("3002"),
+
+  DODO_PAYMENTS_API_KEY: z.string({ error: "DODO_PAYMENTS_API_KEY is required" }),
+  DODO_PAYMENTS_WEBHOOK_KEY: z.string({ error: "DODO_PAYMENTS_WEBHOOK_KEY is required" }),
+  DODO_PAYMENTS_ENVIRONMENT: z.enum(["test_mode", "live_mode"]),
 });
 
 export const env = apiEnvSchema.parse({
@@ -79,6 +83,9 @@ export const env = apiEnvSchema.parse({
   PROMETHEUS_PORT: process.env.PROMETHEUS_PORT,
   GRAFANA_PORT: process.env.GRAFANA_PORT,
   METRICS_SERVER_PORT: process.env.METRICS_SERVER_PORT,
+  DODO_PAYMENTS_API_KEY: process.env.DODO_PAYMENTS_API_KEY,
+  DODO_PAYMENTS_WEBHOOK_KEY: process.env.DODO_PAYMENTS_WEBHOOK_KEY,
+  DODO_PAYMENTS_ENVIRONMENT: process.env.DODO_PAYMENTS_ENVIRONMENT,
 });
 
 export type Env = z.infer<typeof apiEnvSchema>;

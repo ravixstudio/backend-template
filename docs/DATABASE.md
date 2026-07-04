@@ -104,7 +104,7 @@ export type UpdateUser = Partial<NewUser>;
 
 ```typescript
 // packages/db/src/schema/users/sessions.db.ts
-export const sessionProviderEnum = pgEnum("session_provider", ["google"]);
+export const sessionProviderEnum = pgEnum("session_provider", ["google", "apple"]);
 export const sessionStatusEnum = pgEnum("session_status", ["active", "expired", "revoked"]);
 
 export const sessionsTable = pgTable("sessions", {

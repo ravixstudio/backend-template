@@ -18,11 +18,19 @@ import { type AppBindings, type AppRouteHandler } from "./types";
 import { createRoute, z } from "@hono/zod-openapi";
 import { secureHeaders } from "hono/secure-headers";
 import { userRoutes } from "./modules/users/user.routes";
+import { initializePayments } from "@repo/payments";
 
 // Initialize database with config
 initializeDB({
   connectionString: env.DATABASE_URL,
   ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+});
+
+// Initialize payments
+initializePayments({
+  apiKey: env.DODO_PAYMENTS_API_KEY,
+  webhookSecret: env.DODO_PAYMENTS_WEBHOOK_KEY,
+  environment: env.DODO_PAYMENTS_ENVIRONMENT,
 });
 
 const app = createApp<AppBindings>();
