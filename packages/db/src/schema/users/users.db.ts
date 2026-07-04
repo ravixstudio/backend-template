@@ -19,6 +19,7 @@ export const usersTable = usersSchema.table(
     avatar: text("avatar"),
     providerAccountId: text("provider_account_id").notNull().unique(),
     role: userRoleEnum("role").notNull().default(UserRole.USER),
+    dodoCustomerId: text("dodo_customer_id").unique(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),

@@ -8,6 +8,7 @@
     "start": "bun run dist/index.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:drop": "drizzle-kit drop",
     "dodo:listen": "dodo wh listen http://localhost:8000/webhooks/dodo",
     "type-check": "tsc --noEmit"
   },
