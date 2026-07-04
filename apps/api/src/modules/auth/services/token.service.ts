@@ -1,4 +1,4 @@
-import { SessionService, type DBTransaction, SessionStatus } from "@repo/db";
+import { SessionService, type DBTransaction, SessionStatus, type SessionMetadata } from "@repo/db";
 import { encrypt, decrypt, logger } from "@repo/shared";
 import { oauthProviderFactory } from "../providers";
 import { env } from "@/env";
@@ -46,6 +46,7 @@ export namespace TokenService {
     sessionId: string,
     options?: {
       tx?: DBTransaction;
+      metadata?: SessionMetadata;
     },
   ): Promise<TokenRefreshResult> {
     const session = await SessionService.findById(sessionId, options);
@@ -111,6 +112,12 @@ export namespace TokenService {
         lastAccessedAt: new Date(),
         // Update scope if provided
         ...(tokenResponse.scope && { providerScope: tokenResponse.scope }),
+        ...(options?.metadata && {
+          metadata: {
+            ...(session.metadata ?? {}),
+            ...options.metadata,
+          },
+        }),
       };
 
       // Update refresh token if provider returned a new one

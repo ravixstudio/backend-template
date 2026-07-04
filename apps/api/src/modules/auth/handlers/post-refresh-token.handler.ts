@@ -65,9 +65,15 @@ export type PostRefreshTokenRoute = typeof postRefreshTokenRoute;
 export const postRefreshTokenHandler: AppRouteHandler<PostRefreshTokenRoute> = async (c) => {
   try {
     const { sessionId } = c.req.valid("json");
+    const ipAddress =
+      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || c.req.header("x-real-ip");
 
     // Refresh access token
-    const result = await TokenService.refreshAccessToken(sessionId);
+    const result = await TokenService.refreshAccessToken(sessionId, {
+      metadata: {
+        ...(ipAddress && { ipAddress }),
+      },
+    });
 
     logger.audit("Access token refreshed", {
       module: "auth",
