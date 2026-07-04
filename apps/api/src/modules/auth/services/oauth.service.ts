@@ -5,6 +5,7 @@ import {
   type DBTransaction,
   type SessionProvider,
   SessionStatus,
+  type SessionMetadata,
 } from "@repo/db";
 import { encrypt, logger, type OAuthProvider } from "@repo/shared";
 import { oauthProviderFactory } from "../providers";
@@ -118,6 +119,7 @@ async function executeOAuthCallbackTransaction(
   userInfo: OAuthUserInfoPayload,
   oauthProvider: OAuthProvider,
   tx: DBTransaction,
+  metadata?: SessionMetadata,
 ): Promise<OAuthCallbackResult> {
   const existingUser = await UsersService.findByProviderAccountId(userInfo.id, { tx });
   const { firstName, lastName } = resolveOAuthNameFields(userInfo, existingUser);
@@ -172,7 +174,7 @@ async function executeOAuthCallbackTransaction(
       providerAccountId: user.providerAccountId,
       expiresAt: sessionExpiresAt,
       lastAccessedAt: new Date(),
-      metadata: {},
+      metadata: metadata ?? {},
     },
     { tx },
   );
@@ -195,6 +197,7 @@ export namespace OAuthService {
       tx?: DBTransaction;
       /** Provider-specific callback payload (e.g. Apple form_post body fields) */
       callbackData?: { user?: string; idToken?: string };
+      metadata?: SessionMetadata;
     },
   ): Promise<OAuthCallbackResult> {
     const oauthProvider = oauthProviderFactory.getProvider(provider);
@@ -252,6 +255,7 @@ export namespace OAuthService {
           userInfo,
           oauthProvider,
           tx,
+          options?.metadata,
         );
       };
 

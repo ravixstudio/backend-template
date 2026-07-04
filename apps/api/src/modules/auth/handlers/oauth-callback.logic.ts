@@ -113,8 +113,14 @@ export async function processOauthCallback(
   }
 
   try {
+    const ipAddress =
+      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || c.req.header("x-real-ip");
+
     const result = await OAuthService.handleCallback(provider, code, {
       callbackData: { user, idToken: id_token },
+      metadata: {
+        ...(ipAddress && { ipAddress }),
+      },
     });
 
     const { user: authUser, session } = result;
