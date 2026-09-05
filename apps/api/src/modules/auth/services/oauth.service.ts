@@ -117,6 +117,7 @@ async function executeOAuthCallbackTransaction(
   },
   userInfo: OAuthUserInfoPayload,
   oauthProvider: OAuthProvider,
+  ipAddress: string,
   tx: DBTransaction,
 ): Promise<OAuthCallbackResult> {
   const existingUser = await UsersService.findByProviderAccountId(userInfo.id, { tx });
@@ -159,6 +160,7 @@ async function executeOAuthCallbackTransaction(
     {
       userId: user.id,
       status: SessionStatus.ACTIVE,
+      userIp: ipAddress,
       provider,
       providerAccessToken: encryptedAccessToken,
       providerAccessTokenIv: accessTokenIv,
@@ -185,12 +187,14 @@ export namespace OAuthService {
    * Handle OAuth callback flow
    * @param provider - The OAuth provider (e.g., SessionProvider.GOOGLE)
    * @param code - Authorization code from OAuth provider
+   * @param ipAddress - Client IP address captured from the callback request
    * @param options - Optional database transaction
    * @returns User and session created/updated
    */
   export async function handleCallback(
     provider: SessionProvider,
     code: string,
+    ipAddress: string,
     options?: {
       tx?: DBTransaction;
       /** Provider-specific callback payload (e.g. Apple form_post body fields) */
@@ -251,6 +255,7 @@ export namespace OAuthService {
           tokenResponseWithRefresh,
           userInfo,
           oauthProvider,
+          ipAddress,
           tx,
         );
       };
