@@ -5,7 +5,6 @@ import { relations } from "drizzle-orm";
 import { enumToPgEnum } from "@repo/shared";
 
 export interface SessionMetadata {
-  ipAddress?: string;
   userAgent?: string;
   device?: string;
   os?: string;
@@ -34,6 +33,7 @@ export const sessionsTable = usersSchema.table(
       .notNull()
       .references(() => usersTable.id),
     status: sessionStatusEnum("status").notNull(),
+    userIp: text("user_ip").notNull().default(""),
 
     provider: sessionProviderEnum("provider").notNull(),
     providerAccessToken: text("provider_access_token").notNull(),

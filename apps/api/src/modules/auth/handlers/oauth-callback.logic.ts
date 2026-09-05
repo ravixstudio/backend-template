@@ -7,10 +7,31 @@ import { type SessionProvider } from "@repo/db";
 import { env } from "@/env";
 import { type AppBindings } from "@/types";
 import { type Context } from "hono";
+import { getConnInfo } from "@hono/node-server/conninfo";
 import { OAUTH_SESSION_TICKET_PURPOSE } from "./get-oauth-session-establish.handler";
 
 function getApiOrigin(): string {
   return new URL(env.GOOGLE_REDIRECT_URI).origin;
+}
+
+/**
+ * Resolves the client's IP address for the request.
+ *
+ * When the API runs behind a reverse proxy / load balancer, the original
+ * client IP is the first entry of the `x-forwarded-for` header chain. Falls
+ * back to the directly connected peer address from the server socket.
+ */
+function getClientIpAddress(c: Context<AppBindings>): string {
+  const forwardedFor = c.req.header("x-forwarded-for");
+
+  if (forwardedFor) {
+    const firstIp = forwardedFor.split(",")[0]?.trim();
+    if (firstIp) {
+      return firstIp;
+    }
+  }
+
+  return getConnInfo(c).remote.address ?? "";
 }
 
 export interface OauthCallbackParams {
@@ -112,8 +133,10 @@ export async function processOauthCallback(
     });
   }
 
+  const ipAddress = getClientIpAddress(c);
+
   try {
-    const result = await OAuthService.handleCallback(provider, code, {
+    const result = await OAuthService.handleCallback(provider, code, ipAddress, {
       callbackData: { user, idToken: id_token },
     });
 

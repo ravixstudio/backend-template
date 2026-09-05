@@ -1,0 +1,1 @@
+ALTER TABLE "users"."sessions" ADD COLUMN "user_ip" text DEFAULT '' NOT NULL;
